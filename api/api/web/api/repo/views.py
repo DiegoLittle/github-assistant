@@ -40,7 +40,7 @@ async def similarity_route(repo:RepoModeInputDTO) -> None:
     :param description: description of the repository.
     """
     preds = get_predictions(
-       description=repo.description)
+       repo.owner,repo.name)
     if preds is None:
             raise HTTPException(status_code=404, detail="No similar repositories found")
     return preds.get('metadatas')[0]

@@ -5,15 +5,19 @@
   ],
   "include": [
     ".plasmo/index.d.ts",
+    "next-env.d.ts",
+    "window.d.ts",
     "./**/*.ts",
     "./**/*.tsx"
   ],
   "compilerOptions": {
+    "jsx": "preserve",
     "paths": {
       "~*": [
         "./*"
       ]
     },
-    "baseUrl": "."
+    "baseUrl": ".",
+    "isolatedModules": true
   }
 }

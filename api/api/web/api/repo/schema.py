@@ -92,12 +92,12 @@ class RepoModelDTO(BaseModel):
 class RepoModeInputDTO(BaseModel):
     id: Optional[int] = None
     node_id: Optional[str] = None
-    name: Optional[str] = None
+    name: str
     full_name: Optional[str] = None
     private: Optional[bool] = None
-    owner: Optional[OwnerDTO] = None
+    owner: str
     html_url: Optional[str] = None
-    description: str
+    description: Optional[str] = None
     fork: Optional[bool] = None
     url: Optional[str] = None
     forks_url: Optional[str] = None
