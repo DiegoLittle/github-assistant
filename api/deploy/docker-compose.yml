@@ -23,6 +23,9 @@ services:
       API_DB_PASS: api
       API_DB_BASE: api
       API_REDIS_HOST: api-redis
+    ports:
+      # Exposes application port.
+      - 8000:8000
 
   db:
     image: postgres:13.8-bullseye

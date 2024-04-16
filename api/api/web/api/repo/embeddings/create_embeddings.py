@@ -1,6 +1,8 @@
 import json
 import time
 from pathlib import Path
+import bson
+from pymongo import MongoClient
 import requests
 import os
 from dotenv import load_dotenv
@@ -40,6 +42,7 @@ def query_repo(repo):
         'Authorization': 'Bearer '+github_token,
         'X-GitHub-Api-Version': '2022-11-28',
     }
+    print('repo',repo)
     response = requests.get('https://api.github.com/repos/'+repo, headers=headers)
     return response.json()
 
@@ -54,6 +57,11 @@ def clean_repo_metadata(repo):
             print('key',key)
             del repo[key]
         if repo.get(key) is not None and (repo.get(key) == {} or repo.get(key) == [] or repo.get(key) == None):
+            del repo[key]
+        # if type(repo.get(key)) != str or type(repo.get(key)) != int or type(repo.get(key)) != float or type(repo.get(key)) != bool:
+        #     if repo.get(key) is not None:
+        #         del repo[key]
+        if type(repo.get(key)) == bson.ObjectId:
             del repo[key]
     # print('repo',repo)
     return repo
@@ -73,7 +81,6 @@ def add_to_index(repo_path):
     repo = query_repo(repo_path)
     repo = clean_repo_metadata(repo)
 
-
     collection.add(
         documents=[repo.get('description')],
         metadatas=[repo],
@@ -89,33 +96,34 @@ def get_predictions(owner,name):
     except:
         make_embeddings()
         collection = client.get_collection(name="github_repos")
-    description = query_repo(owner+"/"+name).get('description')
-    print(description)
+    repo = query_repo(owner+"/"+name)
+    description = repo.get('description')
+    if description is None:
+        return None
     results = collection.query(
         query_texts=[description],
         n_results=3,
     )
+    print("Results",results)
     add_to_index(owner+"/"+name)
     return results
 
 
-def make_embeddings(pages=15):
+def make_embeddings(pages=15, existing_data=[]):
     print("Making embeddings")
     indexed_pages = []
-    existing_data = []
     if os.path.exists("github_repos.json"):
         with open("github_repos.json", "r", encoding="utf-8") as f:
             existing_data = json.load(f)
     data = existing_data
     # List of all unique pages in the data
     for elem in existing_data:
+        del elem["_id"]
         if elem.get("page") is not None and elem.get("page") not in indexed_pages:
             indexed_pages.append(elem.get("page"))
     if len(indexed_pages) == pages:
         print("All pages are already indexed")
         return
-    with open("github_repos.json", "w", encoding="utf-8") as f:
-        json.dump(data, f)
     for i in range(pages):
         print("Fetching page", i+1)
         if i+1 in indexed_pages:
@@ -170,13 +178,42 @@ def make_embeddings(pages=15):
     print("Names of the repositories added to the index:", [x.get("full_name") for x in data] )
 
 
+def create_index(data):
+    data = [ x for x in data if x.get("full_name") is not None and x.get("description") is not None]
+    # Remove duplicates
+    data = list({v['full_name']:v for v in data}.values())
+    texts = []
+    for elem in data:
+        current_text = elem["description"]
+        texts.append(current_text)
+    sentence_transformer_ef = embedding_functions.SentenceTransformerEmbeddingFunction(model_name="all-MiniLM-L6-v2")
+    try:
+        collection = chroma_client.get_collection(name="github_repos", embedding_function=sentence_transformer_ef)
+    except:
+        collection = chroma_client.create_collection(name="github_repos", embedding_function=sentence_transformer_ef)
+    data = [x for x in data if len(collection.get(str(x.get('full_name'))).get('ids')) == 0]
+    if len(data) == 0:
+        return
+    data = [clean_repo_metadata(x) for x in data]
+    metadatas = data
+    ids = [str(i.get("full_name")) for i in data if i.get("full_name") is not None]
+    print('data',data[0])
+    collection.add(
+        documents=texts,
+        metadatas=metadatas,
+        ids=ids,
+    )
 
 
 
 if __name__ == "__main__":
+    client = MongoClient(os.getenv("MONGO_URI"))
+    db = client["github-assistant"]
+    repos = db.repos.find()
     start_time = time.time()
     # with open("github_repos.json", "r", encoding="utf-8") as f:
     #     json.dump(repositories, f, ensure_ascii=False, indent=4)
-    make_embeddings(10)
+    # make_embeddings(10, list(repos))
+    create_index(list(repos))
     print("Finished in --- %s seconds ---" % int(time.time() - start_time))
 

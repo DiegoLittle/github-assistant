@@ -23,6 +23,7 @@ aiofiles = "^23.1.0"
 psycopg = { version = "^3.1.9", extras = ["binary", "pool"] }
 httptools = "^0.6.0"
 chromadb = "^0.4.24"
+pymongo = "^4.6.3"
 
 
 [tool.poetry.dev-dependencies]
